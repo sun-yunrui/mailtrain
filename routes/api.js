@@ -2,6 +2,7 @@
 
 let users = require('../lib/models/users');
 let lists = require('../lib/models/lists');
+let campaigns = require('../lib/models/campaigns');
 let fields = require('../lib/models/fields');
 let subscriptions = require('../lib/models/subscriptions');
 let tools = require('../lib/tools');
@@ -38,6 +39,52 @@ router.all('/*', (req, res, next) => {
 
 });
 
+// ruby bash
+// uri = URI.parse("https://mailtrain.bigamrekr.com/api/lists/create?access_token=202deb301b6d5d141d78d")
+// res = Net::HTTP.post_form(uri, {name:'a new from api list name', description: 'new list decription'})
+// res.body
+
+// params :{
+//     name: 'first list name',
+//     description: 'adsfasdf'
+// }
+router.post('/lists/create', (req, res) => {
+  let input = {name: '', description: ''};
+  Object.keys(req.body).forEach(key => {
+    input[key.toLowerCase()] = req.body[key].toString().trim();
+  });
+  if(input.name !== '' && input.description !== ''){
+    lists.create(req.body, (err, id, cid) => {
+      if (err || !id) {
+        return res.json({
+          result: 'fails',
+          message: 'Could not create list'
+        });
+      }
+      return res.json({
+        result: 'success',
+        id: id,
+        cid: cid
+      });
+    });
+  }else{
+    return res.json({
+      result: 'fails',
+      message: 'ensure add list name and description'
+    });
+  }
+});
+
+// params
+//   email
+//   first_name
+//   last_name
+//   timezone //subscriber's timezone (eg. "Europe/Tallinn", "PST" or "UTC"). If not set defaults to "UTC"
+//   merge_tag_value //custom field value. Use yes/no for option group values (checkboxes, radios, drop downs)
+
+// Additional params:
+//   force_subscribe // set to "yes" if you want to make sure the email is marked as subscribed even if it was previously marked as unsubscribed. If the email was already unsubscribed/blocked then subscription status is not changed by default.
+//   require_confirmation // set to "yes" if you want to send confirmation email to the subscriber before actually marking as subscribed
 router.post('/subscribe/:listId', (req, res) => {
     let input = {};
     Object.keys(req.body).forEach(key => {
@@ -324,6 +371,45 @@ router.post('/field/:listId', (req, res) => {
             });
         });
     });
+});
+
+// params
+//   name
+//   description
+//   list // list id
+//   template  // template id
+//   from
+//   address // from address
+//   reply-to
+//   subject
+router.post('/campaigns/create', (req, res) => {
+  campaigns.create(req.body, false, (err, id) => {
+    if (err || !id) {
+      return res.json({result: 'fails', message: err.message});
+    }
+    return res.json({result: 'success', id: id});
+  });
+});
+
+// params
+//   id
+//   delay-hours
+//   delay-minutes
+// return
+//   id: campaigns id
+
+// status: 1 => sucess, 2 => already sending, 3 ==> Bounced, 4 => paused
+router.post('/campaigns/send', (req, res) => {
+  let delayHours = Math.max(Number(req.body['delay-hours']) || 0, 0);
+  let delayMinutes = Math.max(Number(req.body['delay-minutes']) || 0, 0);
+  let scheduled = new Date(Date.now() + delayHours * 3600 * 1000 + delayMinutes * 60 * 1000);
+  campaigns.send(req.body.id, scheduled, (err, scheduled) => {
+    if(err){
+      return res.json({result: 'fails', message: 'Email has not been send'});
+    }else{
+      return res.json({result: 'success', id: req.body.id});
+    }
+  });
 });
 
 module.exports = router;
